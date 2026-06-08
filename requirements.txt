@@ -1,0 +1,9 @@
+playwright
+playwright-stealth
+python-dotenv
+supabase
+httpx
+tenacity
+phonenumbers
+openpyxl
+dnspython

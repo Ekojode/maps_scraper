@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "deny": [
+      "Bash(*Desktop*)",
+      "Read(/Users/Macbook/Desktop/*)",
+      "Write(/Users/Macbook/Desktop/*)",
+      "Edit(/Users/Macbook/Desktop/*)"
+    ]
+  }
+}
