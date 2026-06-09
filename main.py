@@ -21,8 +21,8 @@ from config.verticals import VERTICALS
 from enrichment.email import enrich_business_email
 from output.database import get_lead_count, insert_lead
 from scraper.browser import close_browser, launch_browser, check_proxy_health
-from scraper.maps import get_business_details, search_google_maps
-from scraper.reviews import process_reviews, scrape_reviews
+from scraper.maps import search_google_maps
+from scraper.reviews import get_details_and_reviews, process_reviews
 from signals.qualify import format_phone_e164, qualify_business
 
 from dotenv import load_dotenv
@@ -169,7 +169,9 @@ def run_search(vertical, city, state, use_proxy=False, max_businesses=None):
         if listings:
             break
         if attempt < 2:
-            log.info(f"  No listings — retrying with fresh proxy IP ({attempt + 1}/2)")
+            delay = 2 ** (attempt + 1)  # 2s, 4s
+            log.info(f"  No listings — retrying with fresh proxy IP ({attempt + 1}/2, waiting {delay}s)")
+            time.sleep(delay)
 
     try:
         summary["searched"] = len(listings)
@@ -192,7 +194,18 @@ def run_search(vertical, city, state, use_proxy=False, max_businesses=None):
 
         for biz in candidates:
             try:
-                details = get_business_details(page, biz["maps_url"])
+                if not biz.get("business_name"):
+                    log.info("  ↷ Skipped — could not determine business name")
+                    continue
+
+                def stop_check(raw, _biz=biz):
+                    return qualify_business(
+                        process_reviews([dict(r) for r in raw]), _biz
+                    ) is not None
+
+                details, raw_reviews = get_details_and_reviews(
+                    page, biz["maps_url"], stop_check=stop_check
+                )
 
                 if not details.get("phone"):
                     log.info(f"  ↷ Skipped {biz['business_name']} — no phone number found")
@@ -200,10 +213,10 @@ def run_search(vertical, city, state, use_proxy=False, max_businesses=None):
 
                 phone = format_phone_e164(details["phone"])
 
-                raw_reviews = scrape_reviews(page, biz["maps_url"])
+                biz_data = {**biz, **details}
                 reviews = process_reviews(raw_reviews)
 
-                signal = qualify_business(reviews, {**biz, **details})
+                signal = qualify_business(reviews, biz_data)
                 if signal is None:
                     log.info(f"  ↷ Skipped {biz['business_name']} — no signal fired")
                     continue
@@ -215,7 +228,7 @@ def run_search(vertical, city, state, use_proxy=False, max_businesses=None):
                     f"{biz['total_reviews']} reviews)"
                 )
 
-                biz_enriched = {**biz, **details, "phone": phone}
+                biz_enriched = {**biz_data, "phone": phone}
                 enrich_business_email(biz_enriched)
 
                 lead = {
@@ -402,7 +415,7 @@ if __name__ == "__main__":
         log.info("  Search: plumber in Houston, TX")
         log.info("━" * 60)
 
-        summary = run_search("plumber", "Houston", "TX",use_proxy=True, max_businesses=MAX_BUSINESSES)
+        summary = run_search("plumber", "Houston", "TX", use_proxy=os.getenv("USE_PROXY", "false").lower() == "true", max_businesses=MAX_BUSINESSES)
         count   = get_lead_count()
 
         with open("logs/test_run.json", "w") as f:

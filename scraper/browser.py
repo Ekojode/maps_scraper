@@ -46,6 +46,26 @@ def launch_browser(use_proxy=None):
         }
 
     context = browser.new_context(**context_args)
+    # Block known heavyweight resources that carry no scraping value:
+    # map tile images, street view pixels, Google Fonts, and static map assets.
+    # Blocking by exact URL pattern (not resource_type) avoids accidentally
+    # aborting XHR/fetch responses that Google may label as "image" internally.
+    context.route(
+        "**/maps/vt**",
+        lambda route: route.abort()
+    )
+    context.route(
+        "**streetviewpixels**",
+        lambda route: route.abort()
+    )
+    context.route(
+        "**fonts.gstatic.com/**",
+        lambda route: route.abort()
+    )
+    context.route(
+        "**maps.gstatic.com/mapfiles/**",
+        lambda route: route.abort()
+    )
     page = context.new_page()
     page.set_default_navigation_timeout(60000)
 

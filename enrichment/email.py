@@ -14,7 +14,7 @@ import httpx
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_fixed
 
 EMAIL_RE = re.compile(r'[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}')
-PHONE_RE = re.compile(r'\+?1?[\s.\-]?\(?(\d{3})\)?[\s.\-](\d{3})[\s.\-](\d{4})')
+PHONE_RE = re.compile(r'\+?1?[\s.\-]?\(?([2-9]\d{2})\)?[\s.\-]([2-9]\d{2})[\s.\-](\d{4})')
 
 # Generic prefixes that indicate a shared inbox rather than a person
 _GENERIC = {

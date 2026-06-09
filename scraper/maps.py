@@ -3,6 +3,7 @@ import re
 import sys
 import time
 from pathlib import Path
+from urllib.parse import unquote_plus
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -72,6 +73,13 @@ def search_google_maps(page, vertical, city, state):
             business_name = lines[0]
             if business_name.lower() == "sponsored" and len(lines) > 1:
                 business_name = lines[1]
+
+            # If name looks like a rating, icon, or garbage, extract from URL instead.
+            # Maps URLs always contain the name: /maps/place/Business+Name/data=...
+            if not business_name or len(business_name) < 3 or re.match(r'^[\d\W]+$', business_name):
+                m_url = re.search(r'/maps/place/([^/@?]+)', maps_url)
+                if m_url:
+                    business_name = unquote_plus(m_url.group(1))
 
             # Search full text for rating (e.g. "4.2" anywhere)
             star_rating = None
