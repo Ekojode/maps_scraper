@@ -72,11 +72,11 @@ def qualify_business(reviews, business):
         if r.get("review_stars") in (1, 2, 3) and not r.get("has_owner_reply") and 61 <= days <= 90:
             return result("b", r)
 
-    # SIGNAL C — 3+ unanswered reviews in last 60 days (any stars)
-    # No specific bad review — trigger is volume, not a single negative review
+    # SIGNAL C — 3+ unanswered reviews (any stars) in last 60 days
     unanswered_60 = [
         r for r in parsed
-        if not r.get("has_owner_reply") and (today - r["_rd"]).days <= 60
+        if not r.get("has_owner_reply")
+        and (today - r["_rd"]).days <= 60
     ]
     if len(unanswered_60) >= 3:
         return {
@@ -88,9 +88,14 @@ def qualify_business(reviews, business):
             "days_since_last_response": days_since_last_response,
         }
 
-    # SIGNAL D — last owner reply was 45+ days ago
-    # No specific bad review — trigger is time since last response
-    if days_since_last_response is not None and days_since_last_response >= 45:
+    # SIGNAL D — last owner reply was 45+ days ago AND at least one review
+    # posted within those 45 days has no reply
+    unanswered_within_45 = [
+        r for r in parsed
+        if not r.get("has_owner_reply")
+        and (today - r["_rd"]).days <= 45
+    ]
+    if days_since_last_response is not None and days_since_last_response >= 45 and unanswered_within_45:
         return {
             "qualifying_signal": "d",
             "bad_review_date": None,

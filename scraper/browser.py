@@ -18,6 +18,22 @@ USER_AGENT = (
 
 _playwright = None
 
+def _build_proxy_config():
+    """Returns proxy dict for the active provider (PROXY_PROVIDER env var)."""
+    provider = os.getenv("PROXY_PROVIDER", "decodo").lower()
+    if provider == "dataimpulse":
+        return {
+            "server":   f"http://{os.getenv('DATAIMPULSE_HOST')}:{os.getenv('DATAIMPULSE_PORT')}",
+            "username": os.getenv("DATAIMPULSE_USER"),
+            "password": os.getenv("DATAIMPULSE_PASS"),
+        }
+    return {
+        "server":   f"http://{os.getenv('DECODO_HOST')}:{os.getenv('DECODO_PORT')}",
+        "username": os.getenv("DECODO_USER"),
+        "password": os.getenv("DECODO_PASS"),
+    }
+
+
 def launch_browser(use_proxy=None):
     global _playwright
     _playwright = sync_playwright().start()
@@ -39,11 +55,7 @@ def launch_browser(use_proxy=None):
     }
 
     if use_proxy:
-        context_args["proxy"] = {
-            "server": f"http://{os.getenv('DECODO_HOST')}:{os.getenv('DECODO_PORT')}",
-            "username": os.getenv("DECODO_USER"),
-            "password": os.getenv("DECODO_PASS"),
-        }
+        context_args["proxy"] = _build_proxy_config()
 
     context = browser.new_context(**context_args)
     # Block known heavyweight resources that carry no scraping value:

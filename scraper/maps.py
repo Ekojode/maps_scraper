@@ -81,17 +81,21 @@ def search_google_maps(page, vertical, city, state):
                 if m_url:
                     business_name = unquote_plus(m_url.group(1))
 
-            # Search full text for rating (e.g. "4.2" anywhere)
+            # Extract rating + review count as a pair — Google always renders them
+            # adjacent as "4.2 (234)", so matching together avoids capturing an
+            # unrelated parenthetical number (suite, year, etc.) as the review count.
             star_rating = None
-            m = re.search(r'\b(\d\.\d)\b', all_text)
+            total_reviews = None
+            normalized = all_text.replace('\n', ' ')
+            m = re.search(r'\b(\d\.\d)\b\s*\(([0-9,]+)\)', normalized)
             if m:
                 star_rating = float(m.group(1))
-
-            # Search full text for review count (e.g. "(234)" or "(1,234)")
-            total_reviews = None
-            m = re.search(r'\(([0-9,]+)\)', all_text)
-            if m:
-                total_reviews = int(m.group(1).replace(',', ''))
+                total_reviews = int(m.group(2).replace(',', ''))
+            else:
+                # Fallback: rating without a review count (e.g. brand-new listing)
+                m = re.search(r'\b(\d\.\d)\b', normalized)
+                if m:
+                    star_rating = float(m.group(1))
 
             results.append({
                 "business_name": business_name,

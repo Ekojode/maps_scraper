@@ -29,18 +29,27 @@ _GENERIC = {
     'tech', 'digital', 'hello', 'website', 'web', 'home',
 }
 
-_INVALID_EXTENSIONS = ('.png', '.jpg', '.gif', '.webp', '.svg', '.ico')
+_INVALID_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.ico', '.bmp', '.tiff', '.tif', '.avif', '.heic')
 _INVALID_KEYWORDS   = ('example', 'domain', 'test', 'sentry', 'wix')
 _INVALID_PREFIXES   = ('noreply', 'no-reply', 'support@sentry')
 
 
 def _is_valid_email(email):
+    email = email.strip()
+    if not email or '@' not in email:
+        return False
     lower = email.lower()
+    if re.search(r'\s', email):
+        return False
     if any(lower.endswith(ext) for ext in _INVALID_EXTENSIONS):
         return False
     if any(kw in lower for kw in _INVALID_KEYWORDS):
         return False
     if any(lower.startswith(prefix) for prefix in _INVALID_PREFIXES):
+        return False
+    # Reject URL-encoded junk in the local part (e.g. %20stitchcoterie@gmail.com)
+    local = email.split('@')[0]
+    if re.search(r'%[0-9a-fA-F]{2}', local):
         return False
     return True
 
@@ -87,7 +96,7 @@ def find_all_emails_on_website(website_url, timeout=10):
     """
     try:
         html = _fetch(website_url, timeout)
-        candidates = [e for e in EMAIL_RE.findall(html) if _is_valid_email(e)]
+        candidates = [e.strip() for e in EMAIL_RE.findall(html) if _is_valid_email(e.strip())]
         seen = set()
         unique = [e for e in candidates if not (e.lower() in seen or seen.add(e.lower()))]
         return sorted(unique, key=_email_score, reverse=True)
@@ -164,7 +173,9 @@ def detect_email_provider(email):
     # Fall back to MX record lookup for custom business domains
     try:
         answers = dns.resolver.resolve(domain, "MX", lifetime=5)
-        for rdata in answers:
+        mx_records = sorted(answers, key=lambda r: r.preference)
+        primary_mx = str(mx_records[0].exchange).rstrip(".") if mx_records else None
+        for rdata in mx_records:
             mx = str(rdata.exchange).lower()
             if "google" in mx or "googlemail" in mx:
                 return "Google Workspace"
@@ -180,7 +191,17 @@ def detect_email_provider(email):
                 return "MXroute"
             if "amazonses" in mx or "amazonaws" in mx:
                 return "Amazon SES"
-        return "Other"
+            if "hostedemail" in mx:
+                return "Rackspace Email"
+            if "secureserver" in mx or "godaddy" in mx:
+                return "GoDaddy Email"
+            if "bluehost" in mx or "dreamhost" in mx or "hostgator" in mx:
+                return "Web Host Email"
+            if "mailgun" in mx:
+                return "Mailgun"
+            if "sendgrid" in mx:
+                return "SendGrid"
+        return primary_mx if primary_mx else "Other"
     except Exception:
         return "Unknown"
 
